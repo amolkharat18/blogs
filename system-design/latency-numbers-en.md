@@ -1,10 +1,10 @@
 # Understanding Latency: The Numbers That Shape System Design ⏱️
 
-Hello friends!<br/>
-Today we are going to talk about some numbers<br/>
-that can make your coding life much easier.<br/>
+Hello friends!  
+Today we are going to talk about some numbers  
+that can make your coding life much easier.  
 
-If you are a programmer or build software,<br/>
+If you are a programmer or build software,  
 this knowledge is as valuable as gold for you!
 
 Understanding latency changes the way you design systems.
