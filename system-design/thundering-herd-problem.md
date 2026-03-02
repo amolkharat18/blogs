@@ -66,7 +66,7 @@ flowchart LR
     LB --> A1[App Server 1]
     LB --> A2[App Server 2]
     LB --> A3[App Server 3]
-    A1 --> C[(🗄️ Cache\nRedis)]
+    A1 --> C[(🗄️ Cache<br>Redis)]
     A2 --> C
     A3 --> C
     C -->|Cache HIT ✅| A1
@@ -147,11 +147,11 @@ In a single-server world, thundering herds are painful. In **distributed systems
 
 ```mermaid
 flowchart TD
-    CacheExpiry[💥 Cache Key Expires] --> S1[Server Pod 1\nCache Miss]
-    CacheExpiry --> S2[Server Pod 2\nCache Miss]
-    CacheExpiry --> S3[Server Pod 3\nCache Miss]
-    CacheExpiry --> S4[Server Pod 4\nCache Miss]
-    CacheExpiry --> S5[Server Pod 5\nCache Miss]
+    CacheExpiry[💥 Cache Key Expires] --> S1[Server Pod 1<br>Cache Miss]
+    CacheExpiry --> S2[Server Pod 2<br>Cache Miss]
+    CacheExpiry --> S3[Server Pod 3<br>Cache Miss]
+    CacheExpiry --> S4[Server Pod 4<br>Cache Miss]
+    CacheExpiry --> S5[Server Pod 5<br>Cache Miss]
     
     S1 --> DB[(Database)]
     S2 --> DB
@@ -251,38 +251,16 @@ Now the good news: this is a **solved problem** with well-known patterns.
 
 ```mermaid
 flowchart TD
-    CacheMiss[Cache Miss Detected] --> TryLock{Acquire\nDistributed Lock?}
+    CacheMiss[Cache Miss Detected] --> TryLock{Acquire<br>Distributed Lock?}
     TryLock -->|Got Lock ✅| FetchDB[Fetch from Database]
     TryLock -->|Lock Taken ❌| Wait[Wait / Return Stale Data]
     FetchDB --> WriteCache[Write to Cache]
     WriteCache --> ReleaseLock[Release Lock]
     ReleaseLock --> ServeAll[All servers serve from Cache]
-    Wait --> ReadCache[Read from Cache\nonce available]
+    Wait --> ReadCache[Read from Cache<br>once available]
     
     style FetchDB fill:#22c55e,color:#fff
     style Wait fill:#f59e0b,color:#fff
-```
-
-**Implementation sketch:**
-```python
-def get_data(key):
-    cached = redis.get(key)
-    if cached:
-        return cached
-    
-    # Try to acquire lock
-    lock = redis.set(f"lock:{key}", "1", nx=True, ex=10)
-    
-    if lock:
-        # I got the lock — I fetch from DB
-        data = db.query(key)
-        redis.setex(key, 3600, data)
-        redis.delete(f"lock:{key}")
-        return data
-    else:
-        # Someone else is fetching — wait briefly and retry
-        time.sleep(0.1)
-        return redis.get(key)  # probably populated by now
 ```
 
 > ⚠️ **Trade-off:** Adds slight latency for waiting servers. But it's infinitely better than DB collapse.
@@ -301,15 +279,13 @@ flowchart LR
     R4[Request 4] --> Coalescer
     R5[Request 5] --> Coalescer
     
-    Coalescer[🔀 Request\nCoalescer] -->|Single request| DB[(Database)]
+    Coalescer[🔀 Request<br>Coalescer] -->|Single request| DB[(Database)]
     DB --> Coalescer
     Coalescer -->|Same response| R1
     Coalescer -->|Same response| R2
     Coalescer -->|Same response| R3
     Coalescer -->|Same response| R4
     Coalescer -->|Same response| R5
-    
-    style Coalescer fill:#6366f1,color:#fff
 ```
 
 Used heavily in **CDNs** (Cloudflare, Fastly) and **API gateways**. When 1,000 users request the same resource simultaneously, only one origin fetch happens.
@@ -319,17 +295,6 @@ Used heavily in **CDNs** (Cloudflare, Fastly) and **API gateways**. When 1,000 u
 ### 3. 🎲 Staggered / Probabilistic Cache Expiry
 
 **The idea:** Instead of a hard TTL, expire items *slightly randomly* so they don't all expire together.
-
-```python
-import random
-
-# Instead of fixed TTL:
-redis.setex(key, 3600, data)  # All expire at exactly T+3600 ❌
-
-# Use jittered TTL:
-ttl = 3600 + random.randint(-300, 300)  # ±5 minutes randomness
-redis.setex(key, ttl, data)  # Expire at different times ✅
-```
 
 **Visual Effect:**
 
@@ -382,15 +347,6 @@ sequenceDiagram
 
 **With jitter:** Clients retry across a 2–5 second window. Server breathes. 😮‍💨
 
-```python
-def retry_with_backoff(attempt):
-    base_delay = 0.5
-    max_delay = 30
-    delay = min(base_delay * (2 ** attempt), max_delay)
-    jitter = random.uniform(0, delay * 0.5)  # Add up to 50% randomness
-    time.sleep(delay + jitter)
-```
-
 ---
 
 ### 5. 🚦 Rate Limiting at the Gate
@@ -399,13 +355,10 @@ def retry_with_backoff(attempt):
 
 ```mermaid
 flowchart LR
-    Users[👥 10,000 Requests/sec] --> RL[🚦 Rate Limiter\nToken Bucket]
+    Users[👥 10,000 Requests/sec] --> RL[🚦 Rate Limiter<br>Token Bucket]
     RL -->|Allow: 500/sec| Backend[Backend Server]
-    RL -->|Reject: 9,500/sec| Error[429 Too Many Requests\n+ Retry-After header]
+    RL -->|Reject: 9,500/sec| Error[429 Too Many Requests<br>+ Retry-After header]
     Backend --> DB[(Database)]
-    
-    style RL fill:#ef4444,color:#fff
-    style Error fill:#fbbf24
 ```
 
 **Best practice:** Return a `Retry-After` header so clients know *when* to come back — preventing yet another synchronized retry storm.
@@ -419,15 +372,15 @@ flowchart TD
     subgraph BEFORE ["❌ Before Mitigation"]
         direction LR
         B_Users[10,000 Users] --> B_Cache[Cache Expired!]
-        B_Cache --> B_DB[(Database\n💀 DEAD)]
+        B_Cache --> B_DB[(Database<br>💀 DEAD)]
     end
 
     subgraph AFTER ["✅ After Mitigation"]
         direction LR
         A_Users[10,000 Users] --> A_RL[Rate Limiter]
-        A_RL --> A_Cache[Cache\nw/ Jittered TTL]
-        A_Cache -->|Miss + Lock| A_Coalescer[Request\nCoalescer]
-        A_Coalescer -->|One request| A_DB[(Database\n😊 HEALTHY)]
+        A_RL --> A_Cache[Cache<br>w/ Jittered TTL]
+        A_Cache -->|Miss + Lock| A_Coalescer[Request<br>Coalescer]
+        A_Coalescer -->|One request| A_DB[(Database<br>😊 HEALTHY)]
         A_DB --> A_Cache
     end
 ```
@@ -479,5 +432,3 @@ Build systems that are **asynchronous by nature, jittered by design, and rate-li
 *🐃 The herd is always out there. The question is: have you built the fence?*
 
 ---
-
-**Tags:** `#SystemDesign` `#DistributedSystems` `#Caching` `#BackendEngineering` `#InterviewPrep` `#SoftwareArchitecture`
