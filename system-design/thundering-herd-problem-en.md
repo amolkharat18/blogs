@@ -52,6 +52,8 @@ The thundering herd hides in plain sight across your architecture:
 | **Message Queues** | Batch of messages released | Consumers compete and crash |
 | **Microservices** | Service comes back online | All retry attempts hit at once |
 
+> *TTL (Time To Live) is the time limit after which data stored in the cache automatically expires and gets removed. ⏳*
+
 ---
 
 ## 🏗️ The Classic Architecture: App → Cache → DB
@@ -80,11 +82,16 @@ flowchart LR
 
 **When the cache EXPIRES for a hot key...** 🚨 *That's when the herd stampedes.*
 
+> *A hot key is a data key that many users access repeatedly at the same time, causing high load on the system.*
+> *During the IPL Final, the live_score cache key, which millions of people refresh at the same time — is an example of a hot key. 🔥*
 ---
 
 ## 🔥 The Real Drama: Cache Expiry Causing a Request Spike
 
-Let's set the scene. It's **IPL Final night** 🏏. Your cricket score app is serving 500,000 users. You have product data cached in Redis with a **TTL of 60 seconds**.
+Let's set the scene.  
+It's **IPL Final night** 🏏.  
+Your cricket score app is serving 500,000 users.  
+You have product data cached in Redis with a **TTL of 60 seconds**.
 
 ```mermaid
 sequenceDiagram
@@ -164,9 +171,6 @@ flowchart TD
     Timeout --> Retry[🔄 All Servers Retry]
     Retry --> DB
     
-    style Overload fill:#ff4444,color:#fff
-    style Timeout fill:#ff8800,color:#fff
-    style Retry fill:#ffcc00
 ```
 
 Notice what happens: **servers retry on failure**, which creates *another* thundering herd wave. This **cascading failure** is what takes down entire platforms.
@@ -259,8 +263,6 @@ flowchart TD
     ReleaseLock --> ServeAll[All servers serve from Cache]
     Wait --> ReadCache[Read from Cache<br>once available]
     
-    style FetchDB fill:#22c55e,color:#fff
-    style Wait fill:#f59e0b,color:#fff
 ```
 
 > ⚠️ **Trade-off:** Adds slight latency for waiting servers. But it's infinitely better than DB collapse.
@@ -295,26 +297,6 @@ Used heavily in **CDNs** (Cloudflare, Fastly) and **API gateways**. When 1,000 u
 ### 3. 🎲 Staggered / Probabilistic Cache Expiry
 
 **The idea:** Instead of a hard TTL, expire items *slightly randomly* so they don't all expire together.
-
-**Visual Effect:**
-
-```mermaid
-gantt
-    title Cache Key Expiry — Fixed vs Staggered
-    dateFormat ss
-    
-    section Fixed TTL (Dangerous)
-    Key-A expires :crit, 60, 1s
-    Key-B expires :crit, 60, 1s
-    Key-C expires :crit, 60, 1s
-    Key-D expires :crit, 60, 1s
-
-    section Staggered TTL (Safe)
-    Key-A expires :55, 5s
-    Key-B expires :58, 5s
-    Key-C expires :61, 5s
-    Key-D expires :64, 5s
-```
 
 > 🧠 **Pro Pattern:** Netflix calls this **"probabilistic early expiration"** — a key starts refreshing *before* it expires (with some probability), ensuring the cache is always warm.
 
