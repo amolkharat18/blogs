@@ -1,5 +1,6 @@
 # 🐃 Understanding the Thundering Herd Problem
-### *When Your System Becomes the Only Open Store in Town*
+
+**When Your System Becomes the Only Open Store in Town**
 
 ---
 
