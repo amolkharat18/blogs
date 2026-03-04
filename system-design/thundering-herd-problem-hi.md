@@ -109,12 +109,14 @@ sequenceDiagram
     Users->>Cache: Request #2 — Cache Miss ❌
     Users->>Cache: Request #3 — Cache Miss ❌
     Users->>Cache: Request #4 — Cache Miss ❌
+    Note over Cache: All 10,000 miss simultaneously!
     
     Cache-->>Users: "Go fetch from DB"
     Users->>DB: 10,000 simultaneous queries 💥
     
-    Note over DB: 🔥 CPU 100%
+    Note over DB: 🔥 CPU spikes to 100%
     Note over DB: 💾 Connection pool exhausted
+    Note over DB: ⏳ Queries timeout
     Note over DB: 💀 Database crashes
 ```
 
@@ -152,15 +154,23 @@ xychart-beta
 
 ```mermaid
 flowchart TD
-    CacheExpiry[💥 Cache Expired] --> S1[Server 1 Miss]
-    CacheExpiry --> S2[Server 2 Miss]
-    CacheExpiry --> S3[Server 3 Miss]
+    CacheExpiry[💥 Cache Key Expires] --> S1[Server Pod 1<br>Cache Miss]
+    CacheExpiry --> S2[Server Pod 2<br>Cache Miss]
+    CacheExpiry --> S3[Server Pod 3<br>Cache Miss]
+    CacheExpiry --> S4[Server Pod 4<br>Cache Miss]
+    CacheExpiry --> S5[Server Pod 5<br>Cache Miss]
+    
     S1 --> DB[(Database)]
     S2 --> DB
     S3 --> DB
-    DB --> Overload[🔥 Overloaded]
-    Overload --> Retry[🔄 Retry Storm]
+    S4 --> DB
+    S5 --> DB
+    
+    DB --> Overload[🔥 DB Overloaded]
+    Overload --> Timeout[⏳ Query Timeouts]
+    Timeout --> Retry[🔄 All Servers Retry]
     Retry --> DB
+    
 ```
 
 Servers retry करते हैं — और दूसरी झुंड लहर बनती है।
@@ -173,6 +183,21 @@ Servers retry करते हैं — और दूसरी झुंड ल
 ## 💀 प्रभाव: CPU, Database, Cache, Latency
 
 ### 🖥️ CPU पर प्रभाव
+
+```mermaid
+timeline
+    title CPU Usage During Thundering Herd Event
+    T-10s : Normal 20% CPU
+          : Cache serving all requests
+    T=0   : Cache TTL expires
+          : All requests become cache misses
+    T+1s  : CPU jumps to 95%+
+          : Servers computing same expensive query
+    T+3s  : CPUs throttle
+          : Context switching overhead explodes
+    T+10s : Servers begin timing out
+          : Cascading failures start
+```
 
 * सभी servers एक साथ समान computation करते हैं
 * Context switching बढ़ती है
@@ -196,6 +221,14 @@ Servers retry करते हैं — और दूसरी झुंड ल
 
 ### ⏱️ Latency में उछाल
 
+```mermaid
+xychart-beta
+    title "P99 Latency During Thundering Herd (ms)"
+    x-axis ["Normal", "Herd Starts", "Peak", "Recovery", "Stabilized"]
+    y-axis "Latency (ms)" 0 --> 5000
+    bar [50, 800, 4500, 2000, 60]
+```
+
 P99 latency 50ms से बढ़कर 4500ms तक जा सकती है।
 
 Users देखते हैं:
@@ -212,64 +245,120 @@ Users देखते हैं:
 
 ### 1. 🔒 Cache Lock / Mutex
 
-केवल *एक* server cache rebuild करेगा। बाकी इंतजार करेंगे।
+**मुख्य विचार:** केवल *एक* server cache rebuild करेगा। बाकी इंतजार करेंगे।
 
 ```mermaid
 flowchart TD
-    Miss --> Lock{Acquire Lock?}
-    Lock -->|Yes| FetchDB
-    Lock -->|No| Wait
-    FetchDB --> WriteCache
-    WriteCache --> Release
+    CacheMiss[Cache Miss Detected] --> TryLock{Acquire<br>Distributed Lock?}
+    TryLock -->|Got Lock ✅| FetchDB[Fetch from Database]
+    TryLock -->|Lock Taken ❌| Wait[Wait / Return Stale Data]
+    FetchDB --> WriteCache[Write to Cache]
+    WriteCache --> ReleaseLock[Release Lock]
+    ReleaseLock --> ServeAll[All servers serve from Cache]
+    Wait --> ReadCache[Read from Cache<br>once available]
+    
 ```
+
+⚠️ **Trade-off:** इंतज़ार कर रहे servers के लिए थोड़ी अतिरिक्त latency बढ़ जाती है। लेकिन DB के collapse होने से यह अनंत गुना बेहतर है।
 
 ---
 
 ### 2. 🔗 Request Coalescing
 
-Multiple identical requests → एक ही backend call।
+**मुख्य विचार:** कई समान requests को **एक में merge कर दिया जाता है**, और वही एक request backend तक जाती है।
 
-CDN और API gateways में व्यापक उपयोग।
+```mermaid
+flowchart LR
+    R1[Request 1] --> Coalescer
+    R2[Request 2] --> Coalescer
+    R3[Request 3] --> Coalescer
+    R4[Request 4] --> Coalescer
+    R5[Request 5] --> Coalescer
+    
+    Coalescer[🔀 Request<br>Coalescer] -->|Single request| DB[(Database)]
+    DB --> Coalescer
+    Coalescer -->|Same response| R1
+    Coalescer -->|Same response| R2
+    Coalescer -->|Same response| R3
+    Coalescer -->|Same response| R4
+    Coalescer -->|Same response| R5
+```
+
+यह तरीका **CDNs** (Cloudflare, Fastly) और **API gateways** में व्यापक रूप से उपयोग किया जाता है।   
+जब 1,000 users एक ही resource को एक साथ request करते हैं, तो केवल एक ही origin fetch होता है।
 
 ---
 
 ### 3. 🎲 Staggered TTL
 
-Hard TTL के बजाय random expiry।
+**मुख्य विचार:** Hard TTL की बजाय items को थोड़ा random तरीके से expire करें, ताकि वे सभी एक साथ expire न हों।  
 
-सभी keys एक साथ expire नहीं होंगी।
-
-Netflix इसे **probabilistic early expiration** कहता है।
+🧠 **Pro Pattern:** Netflix इसे **"probabilistic early expiration"** कहता है — यानी कोई key expire होने से पहले ही (कुछ probability के साथ) refresh होना शुरू कर देती है, जिससे cache हमेशा warm रहता है।
 
 ---
 
 ### 4. 📈 Exponential Backoff + Jitter
 
-Retry करते समय randomness जोड़ें।
+**मुख्य विचार:** जब कोई request fail हो जाए तो तुरंत retry न करें। थोड़ा इंतज़ार करें — और उसमें randomness (jitter) जोड़ें।
 
-Without jitter → दूसरी herd
-With jitter → retries फैल जाते हैं
+```mermaid
+sequenceDiagram
+    participant C1 as Client 1
+    participant C2 as Client 2
+    participant S as Server
+
+    Note over S: Server overloaded 🔥
+    C1->>S: Request (fails)
+    C2->>S: Request (fails)
+    
+    Note over C1: Wait 1s + random jitter
+    Note over C2: Wait 1s + random jitter (different!)
+    
+    C1->>S: Retry after 1.3s ✅
+    C2->>S: Retry after 1.7s ✅
+    
+    Note over S: Requests spread out — server recovers!
+```
+
+**Jitter के बिना:** सभी 10,000 clients दूसरे सेकंड में एक साथ retry करते हैं। फिर से एक herd बन जाता है। 🐃🐃🐃  
+**जिटर के साथ:** क्लाइंट 2–5 सेकंड की विंडो में फिर से कोशिश करते हैं। सर्वर सांस लेता है। 😮‍💨
 
 ---
 
-### 5. 🚦 Rate Limiting
+### 5. 🚦 Rate Limiting at the Gate
 
-Database तक पहुँचने वाली requests को सीमित करें।
+**The idea:** आपके डेटाबेस या बैकएंड सर्विस तक पहुंचने वाले request की संख्या को लिमिट करें।
 
-429 + Retry-After header उपयोग करें।
+```mermaid
+flowchart LR
+    Users[👥 10,000 Requests/sec] --> RL[🚦 Rate Limiter<br>Token Bucket]
+    RL -->|Allow: 500/sec| Backend[Backend Server]
+    RL -->|Reject: 9,500/sec| Error[429 Too Many Requests<br>+ Retry-After header]
+    Backend --> DB[(Database)]
+```
+
+**Best practice:** `Retry-After` header वापस भेजें, ताकि clients को *कब दोबारा प्रयास करना है* यह पता चले — और एक और synchronized retry storm होने से बचा जा सके।
 
 ---
 
 ## 🎭 Before vs After
 
 ```mermaid
-flowchart LR
-    Users --> CacheExpired --> DBDead
-```
+flowchart TD
+    subgraph BEFORE ["❌ Before Mitigation"]
+        direction LR
+        B_Users[10,000 Users] --> B_Cache[Cache Expired!]
+        B_Cache --> B_DB[(Database<br>💀 DEAD)]
+    end
 
-```mermaid
-flowchart LR
-    Users --> RateLimiter --> CacheWithJitter --> Lock --> DBHealthy
+    subgraph AFTER ["✅ After Mitigation"]
+        direction LR
+        A_Users[10,000 Users] --> A_RL[Rate Limiter]
+        A_RL --> A_Cache[Cache<br>w/ Jittered TTL]
+        A_Cache -->|Miss + Lock| A_Coalescer[Request<br>Coalescer]
+        A_Coalescer -->|One request| A_DB[(Database<br>😊 HEALTHY)]
+        A_DB --> A_Cache
+    end
 ```
 
 ---
