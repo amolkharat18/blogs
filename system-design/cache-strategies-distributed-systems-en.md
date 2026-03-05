@@ -108,20 +108,6 @@ In distributed systems — where thousands of users hit hundreds of servers simu
 
 ---
 
-## 📑 Table of Contents
-
-1. [Why Basic TTL Caching Is Not Enough](#1-why-basic-ttl-caching-is-not-enough)
-2. [How Cache Expiry Causes Traffic Spikes — The Thundering Herd](#2-how-cache-expiry-causes-traffic-spikes--the-thundering-herd)
-3. [TTL Jitter — Adding Randomness to Expiration](#3-ttl-jitter--adding-randomness-to-expiration)
-4. [Probability-Based Early Expiration](#4-probability-based-early-expiration)
-5. [Mutex / Cache Locking](#5-mutex--cache-locking--only-one-request-allowed)
-6. [Stale-While-Revalidate (SWR)](#6-stale-while-revalidate-swr--serve-old-refresh-quietly)
-7. [Cache Warming / Pre-Warming](#7-cache-warming--pre-warming--fill-before-the-flood)
-8. [Tradeoffs: Freshness vs Latency vs Consistency](#8-the-eternal-triangle-freshness-vs-latency-vs-consistency)
-9. [When to Use Which Strategy](#9-when-to-use-which-strategy)
-
----
-
 ## 1. Why Basic TTL Caching Is Not Enough
 
 Caching is one of the oldest tricks in computing. The idea is elegant: instead of computing or fetching the same data over and over, store it somewhere fast (like RAM) and reuse it.
