@@ -195,7 +195,7 @@ gantt
 
 ### Full Jitter vs Equal Jitter
 
-AWS published a famous blog post *"Exponential Backoff And Jitter"* recommending **Full Jitter** for cache TTLs — where expiry time is completely randomized within a range. This dramatically reduces contention on backend services.
+AWS published a famous blog post *"Exponential Backoff And Jitter"* [1] recommending **Full Jitter** for cache TTLs — where expiry time is completely randomized within a range. This dramatically reduces contention on backend services.
 
 > 🧠 **Concept Insight:** The same "jitter" principle is used in network retry logic. When Wi-Fi routers all try to retransmit after a collision, they use random backoff timers (CSMA/CD) — exactly the same idea as TTL jitter. Physics and distributed systems share the same wisdom.
 
@@ -339,7 +339,7 @@ sequenceDiagram
     C-->>U2: ✅ Fresh Data
 ```
 
-> 🌍 **Real-World Adoption:** The SWR pattern is so popular that Vercel named their famous React data-fetching library after it — **SWR** — with over 32.3k GitHub stars (https://github.com/vercel/swr). The pattern is used by Netflix, Twitter/X, and virtually every major CDN on the planet.
+> 🌍 **Real-World Adoption:** The SWR pattern is so popular that Vercel named their famous React data-fetching library after it — **SWR** — with over 32.3k GitHub [2] stars (https://github.com/vercel/swr). The pattern is used by Netflix, Twitter/X, and virtually every major CDN on the planet.
 
 ### When SWR Works Best
 
@@ -655,5 +655,8 @@ The best cache strategy is the one your users never notice — because nothing e
 
 ---
 
+References:  
+1. [Vercel SWR](https://github.com/vercel/swr)  
+2. [Exponential Backoff And Jitter](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter)  
 
-
+---
