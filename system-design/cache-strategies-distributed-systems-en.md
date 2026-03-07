@@ -91,9 +91,9 @@
 
 It's 11:59 PM. Millions of viewers across the world are waiting to watch the season finale of a hit show. The clock hits midnight. Everyone clicks **"Play"** at the same time. Netflix's cache — which was happily serving data for the last hour — suddenly expires. Every single server rushes to the database to fetch fresh data. The database chokes. The app slows down. Twitter explodes with complaints.
 
-This scenario has a name. Engineers call it the **Thundering Herd Problem**. And basic TTL caching is its accomplice.
+This scenario has a name. Engineers call it the **Thundering Herd Problem**. And basic TTL caching also helps cause this problem..
 
-We've all learned the basics of caching: store expensive computation results, set a Time-To-Live (TTL), serve from cache, and let it expire. Simple. Clean. Beautiful.
+At its core, caching sounds simple: compute something once, store the result with a Time-To-Live (TTL), serve it quickly from cache, and recompute it when it expires. Simple. Clean. Beautiful.
 
 **Until it isn't.**
 
@@ -107,7 +107,7 @@ Caching is one of the oldest tricks in computing. The idea is elegant: instead o
 
 TTL (Time-To-Live) makes cached data self-cleaning. You set a timer — say, 5 minutes — and after that, the data is considered stale and gets evicted. The next request triggers a fresh fetch.
 
-> 🚀 **Amazing Fact:** Accessing data from RAM takes ~100 nanoseconds. Fetching it from a database over the network takes ~10 milliseconds. That's a **100,000× speed difference**. A single cache hit can save the time it takes light to travel 3 kilometres!
+> 🚀 **Amazing Fact:** Accessing data from RAM takes ~100 nanoseconds. Fetching it from a database over the network takes ~10 milliseconds. That's a **100,000× speed difference**.
 
 ### The Three Quiet Killers of Basic TTL
 
