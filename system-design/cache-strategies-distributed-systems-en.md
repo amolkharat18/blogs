@@ -339,7 +339,7 @@ sequenceDiagram
     C-->>U2: ✅ Fresh Data
 ```
 
-> 🌍 **Real-World Adoption:** The SWR pattern is so popular that Vercel named their famous React data-fetching library after it — **SWR** — with over 28,000 GitHub stars. The pattern is used by Netflix, Twitter/X, and virtually every major CDN on the planet.
+> 🌍 **Real-World Adoption:** The SWR pattern is so popular that Vercel named their famous React data-fetching library after it — **SWR** — with over 32.3k GitHub stars (https://github.com/vercel/swr). The pattern is used by Netflix, Twitter/X, and virtually every major CDN on the planet.
 
 ### When SWR Works Best
 
@@ -531,7 +531,7 @@ flowchart TD
     Q1{"Can I tolerate<br>slightly stale data?"}
     Q2{"Will many keys expire<br>simultaneously?"}
     Q3{"Is this a planned<br>high-traffic event?"}
-    Q4{"Is recomputation\nexpensive? >500ms"}
+    Q4{"Is recomputation<br>expensive? >500ms"}
     Q5{"Real-time accuracy<br>non-negotiable?"}
 
     S_SWR["✅ Use SWR<br>or Probabilistic Expiry"]
