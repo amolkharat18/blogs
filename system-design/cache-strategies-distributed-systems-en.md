@@ -8,10 +8,6 @@
 ## 🗺️ Blog Mind Map
 
 ```markmap
----
-title: Cache Strategies in Distributed Systems
----
-
 # Cache Strategies in Distributed Systems
 
 ## Why Basic TTL Fails
@@ -37,7 +33,6 @@ title: Cache Strategies in Distributed Systems
 
 ## Strategy 1: TTL Jitter
 - Add random offset to TTL
-  - `TTL = base + random(-30, +30)`
 - Spreads expiry across time window
 - Full Jitter vs Equal Jitter
 - AWS recommends Full Jitter
@@ -54,7 +49,6 @@ title: Cache Strategies in Distributed Systems
 - Only 1 request recomputes
 - Others wait → benefit from fresh cache
 - Distributed Mutex via Redis (Redlock)
-  - `SET key value NX PX timeout`
 - Adds latency for waiting requests
 - Always set TTL on the lock itself
 
@@ -63,7 +57,6 @@ title: Cache Strategies in Distributed Systems
 - Trigger background refresh
 - Next request gets fresh data
 - Used by Cloudflare, Fastly, Akamai
-  - `Cache-Control: max-age=300, stale-while-revalidate=60`
 - Vercel SWR library
 - Not suitable for financial / medical data
 
