@@ -590,7 +590,7 @@ title: Cache Strategies — Final Summary
 
 ## 🟡 Strategy 1: TTL Jitter
 - Spread expiry randomly
-- `TTL = base + random(-30s, +30s)`
+- TTL = base + random(-30s, +30s)
 - Full Jitter preferred
 - ✅ Always use as baseline in production
 
@@ -609,7 +609,7 @@ title: Cache Strategies — Final Summary
 ## 🟡 Strategy 4: Stale-While-Revalidate
 - Serve stale instantly → refresh async
 - CDN native support
-- `Cache-Control: stale-while-revalidate`
+- Cache-Control: stale-while-revalidate
 - ✅ Use when slight staleness is acceptable
 
 ## 🟡 Strategy 5: Cache Warming
@@ -654,5 +654,6 @@ It's about designing for failure before failure arrives.
 The best cache strategy is the one your users never notice — because nothing ever went wrong.*
 
 ---
+
 
 
