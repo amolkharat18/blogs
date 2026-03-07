@@ -179,10 +179,10 @@ gantt
     axisFormat %ss
 
     section ❌ Without Jitter
-    Key-1 (cache active)   :done,    0, 300
-    Key-2 (cache active)   :done,    0, 300
-    Key-3 (cache active)   :done,    0, 300
-    Key-4 (cache active)   :done,    0, 300
+    Key-1 (cache active)   :active,    0, 300
+    Key-2 (cache active)   :active,    0, 300
+    Key-3 (cache active)   :active,    0, 300
+    Key-4 (cache active)   :active,    0, 300
     DB SPIKE 💥            :crit,    300, 315
 
     section ✅ With Jitter
