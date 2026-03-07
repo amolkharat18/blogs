@@ -658,7 +658,7 @@ flowchart TD
 
 ## 🟡 धोरण १: TTL Jitter
 - Expiry randomly पसरवा
-- `TTL = base + random(-30s, +30s)`
+- TTL = base + random(-30s, +30s)
 - Full Jitter श्रेयस्कर
 - ✅ Production मध्ये नेहमी baseline म्हणून वापरा
 
@@ -677,7 +677,7 @@ flowchart TD
 ## 🟡 धोरण ४: Stale-While-Revalidate
 - Stale तात्काळ serve → async refresh
 - CDN native support
-- `Cache-Control: stale-while-revalidate`
+- Cache-Control: stale-while-revalidate
 - ✅ किंचित staleness स्वीकार्य असताना वापरा
 
 ## 🟡 धोरण ५: Cache Warming
