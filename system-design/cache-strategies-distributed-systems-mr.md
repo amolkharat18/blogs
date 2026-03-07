@@ -239,7 +239,7 @@ gantt
 
 ### Full Jitter विरुद्ध Equal Jitter
 
-AWS ने त्यांच्या प्रसिद्ध blog post *"Exponential Backoff And Jitter"* [1] मध्ये cache TTLs साठी **Full Jitter** सुचवले —  
+AWS ने त्यांच्या प्रसिद्ध blog post *"Exponential Backoff And Jitter"* [१] मध्ये cache TTLs साठी **Full Jitter** सुचवले —  
 जिथे expiry वेळ एका range मध्ये पूर्णपणे randomize केली जाते.  
 यामुळे backend services वरील वादविवाद नाटकीयरित्या कमी होते.
 
@@ -298,20 +298,27 @@ graph LR
 ## ५. Mutex / Cache Locking — फक्त एकच Request आत
 
 १०० requests एकाच वेळी येतात.  
-Cache नुकताच expire झाला. सर्व १०० cache miss बघतात.  
-सर्व १०० database कडे धाव घेतात. Database तीच महागडी query १०० वेळा चालवतो, तोच निकाल १०० वेळा परत करतो, आणि सर्व १०० responses cache मध्ये साठवले जातात — बरोबर तीच value १०० वेळा लिहिली जाते. हे computational बेकार आणि database चा दुरुपयोग एकत्र आहे.
+Cache नुकताच expire झाला.  
+सर्व १०० cache miss होतात.  
+सर्व १०० database कडे धाव घेतात.  
+Database तीच महागडी query १०० वेळा चालवतो,  
+तोच निकाल १०० वेळा परत करतो,  
+आणि सर्व १०० responses cache मध्ये साठवले जातात —  
+बरोबर तीच value १०० वेळा लिहिली जाते.  
+हे computationally बेकार आणि database चा दुरुपयोग एकत्र आले आहे.
 
 उपाय: **फक्त एकाच request ला महागडे काम करू द्या. बाकी सर्वांनी थांबावे.**
 
-एक **Mutex (Mutual Exclusion Lock)** म्हणतो: "फक्त एकाच thread/request ला एका वेळी या critical section मध्ये प्रवेश मिळू शकतो."
+एक **Mutex (Mutual Exclusion Lock)** म्हणतो:  
+> "फक्त एकाच thread/request ला एका वेळी या critical section मध्ये प्रवेश मिळू शकतो."
 
 ### हे कसे काम करते
 
 1. Request #1 ला cache miss दिसतो → mutex lock मिळवतो
-2. Requests #2–#100 ला cache miss दिसतो → lock मिळवण्याचा प्रयत्न → **blocked, ते वाट बघतात**
+2. Requests #2 ला cache miss दिसतो → lock मिळवण्याचा प्रयत्न → **blocked, ते वाट बघतात**
 3. Request #1 DB मधून fresh data fetch करतो → cache populate करतो
 4. Request #1 lock सोडतो
-5. Requests #2–#100 आता **cache मधून fresh data** वाचतात — cache hit! ✅
+5. Requests #2 आता **cache मधून fresh data** वाचतात — cache hit! ✅
 
 ### आकृती — Mutex Cache Locking प्रवाह
 
@@ -345,7 +352,11 @@ sequenceDiagram
 
 ### Redis सह Distributed Mutex
 
-वितरित प्रणालींमध्ये, सामान्य in-process mutex काम करत नाही — Request #1 Server A वर असू शकतो, तर Request #2 Server B वर. तुम्हाला **distributed lock** हवे — सामान्यतः Redis च्या `SET key value NX PX timeout` command द्वारे (**Redlock algorithm**).
+वितरित प्रणालींमध्ये, सामान्य in-process mutex काम करत नाही —  
+Request #1 Server A वर असू शकतो,  
+तर Request #2 Server B वर.  
+तुम्हाला **distributed lock** हवे —  
+सामान्यतः Redis च्या `SET key value NX PX timeout` command द्वारे (**Redlock algorithm**).
 
 > ⚠️ **सावध राहा:** Mutex, wait करणाऱ्या requests साठी latency वाढवतो. Lock धारक crash झाल्यास, lock TTL तुम्हाला वाचवतो. "Lock timeout" gracefully हाताळा — wait करणाऱ्या requests ला कधीही उपाशी ठेवू नका.
 
@@ -355,17 +366,21 @@ sequenceDiagram
 
 ## ६. Stale-While-Revalidate (SWR) — जुने Serve करा, शांतपणे Refresh करा
 
-Mutex वापरकर्त्यांना वाट बघायला लावतो. हे कधीकधी अस्वीकार्य असते. अनेक use cases साठी एक चांगली तत्त्वज्ञान आहे:
+Mutex वापरकर्त्यांना वाट बघायला लावतो.  
+हे कधीकधी अस्वीकार्य असते.  
+अनेक use cases साठी एक चांगलं तत्त्वज्ञान आहे:
 
-> *"वापरकर्त्याला तात्काळ थोडा जुना data द्या. Background मध्ये refresh करा. पुढील request ला fresh data मिळेल. कोणी वाट बघितली नाही."*
+> *"वापरकर्त्याला तात्काळ थोडा जुना data द्या. Background मध्ये refresh करा. पुढील request ला fresh data मिळेल. कोणी वाट बघणार नाही."*
 
-**Stale-While-Revalidate (SWR)** "serving" आणि "refreshing" वेगळे करते. Expired data साठी request आल्यावर:
+**Stale-While-Revalidate (SWR)** "serving" आणि "refreshing" वेगळे करते.  
+Expired data साठी request आल्यावर:
 
 1. **तात्काळ जुनी (stale) value परत करा** — वापरकर्त्यासाठी शून्य latency
-2. **एकाच वेळी background refresh trigger करा**
+2. **त्याच वेळी background refresh trigger करा**
 3. **पुढील request ला fresh value मिळते**
 
-आधुनिक CDNs नेमके असेच काम करतात. Cloudflare, Fastly आणि Akamai HTTP headers द्वारे SWR support करतात:
+आधुनिक CDNs नेमके असेच काम करतात.  
+Cloudflare, Fastly आणि Akamai HTTP headers द्वारे SWR support करतात:
 
 ```
 Cache-Control: max-age=300, stale-while-revalidate=60
@@ -395,7 +410,7 @@ sequenceDiagram
     C-->>U2: ✅ Fresh Data
 ```
 
-> 🌍 **वास्तविक जगातील वापर:** SWR pattern इतका लोकप्रिय आहे की Vercel ने त्यांच्या प्रसिद्ध React data-fetching library चे नाव त्यावरून ठेवले — **SWR** — ज्याला GitHub वर २८,००० हून अधिक stars आहेत. हा pattern Netflix, Twitter/X आणि जगातील जवळजवळ प्रत्येक मोठ्या CDN द्वारे वापरला जातो.
+> 🌍 **वास्तविक जगातील वापर:** SWR pattern इतका लोकप्रिय आहे की Vercel ने त्यांच्या प्रसिद्ध React data-fetching library चे नाव त्यावरून ठेवले — **SWR** — ज्याला GitHub [१] वर २८,००० हून अधिक stars आहेत. हा pattern Netflix, Twitter/X आणि जगातील जवळजवळ प्रत्येक मोठ्या CDN द्वारे वापरला जातो.
 
 ### SWR सर्वोत्तम कुठे काम करतो
 
@@ -413,11 +428,18 @@ sequenceDiagram
 
 ## ७. Cache Warming / Pre-Warming — महापुरापूर्वी भरा
 
-एका मोठ्या e-commerce sale च्या सकाळी — Flipkart Big Billion Days कल्पना करा. Engineers ला माहीत आहे की रात्री १२:०० वाजता लाखो वापरकर्ते platform वर येतील. Cache cold (रिकामा) असेल तर, ते पहिले requests database वर पूर्ण शक्तीने आदळतील. पहिले १० मिनिटे विनाशकारी ठरू शकतात.
+एका मोठ्या e-commerce sale च्या सकाळी —  
+Flipkart Big Billion Days कल्पना करा.  
+Engineers ला माहीत आहे की रात्री १२:०० वाजता लाखो वापरकर्ते platform वर येतील.  
+Cache cold (रिकामा) असेल तर,  
+ते पहिले requests database वर पूर्ण शक्तीने आदळतील.  
+पहिले १० मिनिटे विनाशकारी ठरू शकतात.
 
-उपाय? **वापरकर्त्यांची cache warm करण्याची वाट बघू नका. स्वतःच warm करा.**
+उपाय? **कार्यकर्त्यांनी cache warm करण्याची वाट बघू नका.  
+स्वतःच warm करा.**
 
-**Cache Warming** (Pre-Warming किंवा Cache Priming असेही म्हणतात) म्हणजे traffic येण्यापूर्वीच *वारंवार access होणारा data cache मध्ये proactively* भरण्याची सराव.
+याला **Cache Warming** (Pre-Warming किंवा Cache Priming असेही म्हणतात)  
+म्हणजे traffic येण्यापूर्वीच *वारंवार access होणारा data cache मध्ये proactively* भरण्याचा सराव.
 
 ### तीन Warming पद्धती
 
@@ -457,7 +479,7 @@ timeline
 
 प्रत्येक caching धोरण म्हणजे नेहमी तणावात असलेल्या तीन शक्तींमधील वाटाघाटी:
 
-- **🕐 Freshness** — Data किती अलीकडचे आहे? कमी TTL = fresher data पण जास्त backend दबाव.
+- **🕐 Freshness** — Data किती अलीकडचा आहे? कमी TTL = fresher data पण जास्त backend वर दबाव.
 - **⚡ Latency** — Response किती जलद आहे? जास्त caching = कमी latency पण संभाव्य staleness.
 - **🔒 Consistency** — सर्व वापरकर्त्यांना एकच data दिसतो का? Distributed caches काळजीपूर्वक manage न केल्यास वेगवेगळ्या versions serve करू शकतात.
 
@@ -504,10 +526,6 @@ Caching ची स्वतःची आवृत्ती आहे: Freshness,
 ### माइंड मॅप — निर्णय मार्गदर्शक
 
 ```markmap
----
-title: Cache Strategy Decision Guide
----
-
 # कुठले Cache धोरण?
 
 ## थोडा जुना data सहन होतो का?
@@ -631,10 +649,6 @@ flowchart TD
 ### संपूर्ण धोरण माइंड मॅप
 
 ```markmap
----
-title: Cache Strategies — Final Summary
----
-
 # Cache धोरणे — अंतिम सारांश
 
 ## 🔴 समस्या
@@ -709,9 +723,9 @@ title: Cache Strategies — Final Summary
 
 ---
 
-संदर्भ
-1. [Exponential Backoff And Jitter](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/)
-2. 
+संदर्भ:  
+१. [Vercel SWR](https://github.com/vercel/swr)  
+२. [Exponential Backoff And Jitter](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter)  
 
 ---
 
