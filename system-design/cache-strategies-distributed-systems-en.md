@@ -89,23 +89,48 @@
 
 ## Introduction — The Night Netflix Almost Broke the Internet
 
-It's 11:59 PM. Millions of viewers across the world are waiting to watch the season finale of a hit show. The clock hits midnight. Everyone clicks **"Play"** at the same time. Netflix's cache — which was happily serving data for the last hour — suddenly expires. Every single server rushes to the database to fetch fresh data. The database chokes. The app slows down. Twitter explodes with complaints.
+It's 11:59 PM.  
+Millions of viewers across the world are waiting to watch the season finale of a hit show.  
+The clock hits midnight.  
+Everyone clicks **"Play"** at the same time.  
+Netflix's cache — which was happily serving data for the last hour — suddenly expires.  
+Every single server rushes to the database to fetch fresh data.  
+The database chokes.  
+The app slows down.  
+Twitter explodes with complaints.
 
-This scenario has a name. Engineers call it the **Thundering Herd Problem**. And basic TTL caching also helps cause this problem..
+This scenario has a name.  
+Engineers call it the **Thundering Herd Problem**.  
+And basic TTL caching also helps cause this problem..
 
-At its core, caching sounds simple: compute something once, store the result with a Time-To-Live (TTL), serve it quickly from cache, and recompute it when it expires. Simple. Clean. Beautiful.
+At its core, caching sounds simple:  
+compute something once,  
+store the result with a Time-To-Live (TTL),  
+serve it quickly from cache,  
+and recompute it when it expires.  
+Simple. Clean. Beautiful.
 
 **Until it isn't.**
 
-In distributed systems — where thousands of users hit hundreds of servers simultaneously — naive caching can be worse than no caching at all. This blog takes you deep into the battle-tested strategies that companies like Netflix, Amazon, and Hotstar use to keep their systems alive during traffic spikes.
+In distributed systems —  
+where thousands of users hit hundreds of servers simultaneously —  
+naive caching can be worse than no caching at all.  
+This blog takes you deep into the battle-tested strategies that  
+companies like Netflix, Amazon, and Hotstar use to keep their systems alive during traffic spikes.
 
 ---
 
 ## 1. Why Basic TTL Caching Is Not Enough
 
-Caching is one of the oldest tricks in computing. The idea is elegant: instead of computing or fetching the same data over and over, store it somewhere fast (like RAM) and reuse it.
+Caching is one of the oldest tricks in computing.  
+The idea is elegant:  
+instead of computing or fetching the same data over and over,  
+store it somewhere fast (like RAM) and reuse it.
 
-TTL (Time-To-Live) makes cached data self-cleaning. You set a timer — say, 5 minutes — and after that, the data is considered stale and gets evicted. The next request triggers a fresh fetch.
+TTL (Time-To-Live) makes cached data self-cleaning.  
+You set a timer — say, 5 minutes —  
+and after that, the data is considered stale and gets evicted.  
+The next request triggers a fresh fetch.
 
 > 🚀 **Amazing Fact:** Accessing data from RAM takes ~100 nanoseconds. Fetching it from a database over the network takes ~10 milliseconds. That's a **100,000× speed difference**.
 
@@ -125,9 +150,16 @@ TTL (Time-To-Live) makes cached data self-cleaning. You set a timer — say, 5 m
 
 ## 2. How Cache Expiry Causes Traffic Spikes — The Thundering Herd
 
-Imagine a popular IPL match. Hotstar has cached the live score for all 50 million viewers. TTL is set to 10 seconds. At exactly T=10 seconds, the cache expires for **everyone**. All 50 million clients simultaneously fire a request to the database server for updated scores.
+Imagine a popular IPL match.  
+Hotstar has cached the live score for all 50 million viewers.  
+TTL is set to 10 seconds. At exactly T=10 seconds,  
+the cache expires for **everyone**.  
+All 50 million clients simultaneously fire a request to the database server for updated scores.
 
-The database sees a wall of 50 million queries in a fraction of a second. It was not designed for this. It falls to its knees. Welcome to the **Thundering Herd**.
+The database sees a wall of 50 million queries in a fraction of a second.  
+It was not designed for this.  
+It falls to its knees.  
+Welcome to the **Thundering Herd**.
 
 ### Diagram — Thundering Herd Flow
 
@@ -152,7 +184,10 @@ graph TD
 
 > 📊 **Real-World Numbers:** During Amazon Prime Day 2023, Amazon handled over **375 million items sold** in 48 hours. Without intelligent caching, even a 0.01-second delay per request would cascade into billions of dollars in lost revenue. Cache strategy is not a developer concern — it's a business survival concern.
 
-The core issue is **temporal correlation**: too many cache entries share the same expiry timestamp. It's like all your milk cartons in a grocery store having the same expiry date — when they all go bad at once, no amount of restocking can keep up.
+The core issue is **temporal correlation**:  
+too many cache entries share the same expiry timestamp.  
+It's like all your milk cartons in a grocery store having the same expiry date —  
+when they all go bad at once, no amount of restocking can keep up.
 
 > *"The thundering herd doesn't knock at the door. It kicks it down. The moment your cache expires, your database becomes the emergency room."*
 
@@ -160,7 +195,8 @@ The core issue is **temporal correlation**: too many cache entries share the sam
 
 ## 3. TTL Jitter — Adding Randomness to Expiration
 
-The fix for synchronized expiry is beautifully simple: **don't let everything expire at the same time.**
+The fix for synchronized expiry is beautifully simple:  
+**don't let everything expire at the same time.**
 
 Instead of setting every cache entry with exactly 300 seconds TTL, you add a random offset — the "jitter":
 
@@ -168,7 +204,9 @@ Instead of setting every cache entry with exactly 300 seconds TTL, you add a ran
 TTL = base_ttl + random(-30, +30)
 ```
 
-So instead of 10,000 keys all expiring at T=300, they now expire between T=270 and T=330. Your database receives a smooth, manageable stream of refresh requests instead of one catastrophic spike.
+So instead of 10,000 keys all expiring at T=300,  
+they now expire between T=270 and T=330.  
+Your database receives a smooth, manageable stream of refresh requests instead of one catastrophic spike.
 
 ### Diagram — Synchronized vs Jittered TTL
 
@@ -195,7 +233,8 @@ gantt
 
 ### Full Jitter vs Equal Jitter
 
-AWS published a famous blog post *"Exponential Backoff And Jitter"* [1] recommending **Full Jitter** for cache TTLs — where expiry time is completely randomized within a range. This dramatically reduces contention on backend services.
+AWS published a famous blog post *"Exponential Backoff And Jitter"* [1] recommending **Full Jitter** for cache TTLs —  
+where expiry time is completely randomized within a range. This dramatically reduces contention on backend services.
 
 > 🧠 **Concept Insight:** The same "jitter" principle is used in network retry logic. When Wi-Fi routers all try to retransmit after a collision, they use random backoff timers (CSMA/CD) — exactly the same idea as TTL jitter. Physics and distributed systems share the same wisdom.
 
@@ -205,15 +244,27 @@ AWS published a famous blog post *"Exponential Backoff And Jitter"* [1] recommen
 
 ## 4. Probability-Based Early Expiration
 
-Jitter solves synchronized expiry. But there's still an issue: when a key expires, the next request **always waits** for full recomputation before being served. What if we could start recomputing *before* the entry actually expires?
+Jitter solves synchronized expiry.  
+But there's still an issue:  
+when a key expires,  
+the next request **always waits** for full recomputation before being served.  
+What if we could start recomputing *before* the entry actually expires?
 
-Enter **Probabilistic Early Expiration** — also called the **XFetch algorithm**.
+Enter **Probabilistic Early Expiration** —  
+also called the **XFetch algorithm**.
 
 ### The Core Idea
 
-As a cached value gets closer to its TTL, individual requests are given an increasing *probability* of triggering a background refresh. Early requests have a low chance. Requests arriving just before expiry have a very high chance.
+As a cached value gets closer to its TTL,  
+individual requests are given an increasing *probability* of triggering a background refresh.  
+Early requests have a low chance.  
+Requests arriving just before expiry have a very high chance.
 
-Think of it like a candle burning down. Most people keep using the room's light. But as the candle gets shorter, someone preemptively goes to get a new one — *before* the room goes dark.
+Think of it like a candle burning down.  
+Most people keep using the room's light.  
+But as the candle gets shorter,  
+someone preemptively goes to get a new one —  
+*before* the room goes dark.
 
 ### Diagram — Probability-Based Early Expiration
 
@@ -243,19 +294,26 @@ graph LR
 
 ## 5. Mutex / Cache Locking — Only One Request Allowed
 
-100 requests arrive simultaneously. The cache just expired. All 100 see a cache miss. All 100 rush to the database. The database runs the same expensive query 100 times. It's computational waste and database abuse combined.
+100 requests arrive simultaneously.  
+The cache just expired.  
+All 100 see a cache miss.  
+All 100 rush to the database.  
+The database runs the same expensive query 100 times.  
+It's computational waste and database abuse combined.
 
-The solution: **only let one request do the expensive work. Everyone else waits.**
+The solution:  
+**only let one request do the expensive work. Everyone else waits.**
 
-A **Mutex (Mutual Exclusion Lock)** says: "Only one thread/request can enter this critical section at a time."
+A **Mutex (Mutual Exclusion Lock)** says:  
+"Only one thread/request can enter this critical section at a time."
 
 ### How It Works
 
 1. Request #1 sees cache miss → acquires the mutex lock
-2. Requests #2–#100 see cache miss → try to acquire lock → **blocked, they wait**
+2. Requests #2 see cache miss → try to acquire lock → **blocked, they wait**
 3. Request #1 fetches fresh data from DB → populates cache
 4. Request #1 releases the lock
-5. Requests #2–#100 now read **fresh data from cache** — cache hit! ✅
+5. Requests #2 now read **fresh data from cache** — cache hit! ✅
 
 ### Diagram — Mutex Cache Locking Flow
 
@@ -289,7 +347,12 @@ sequenceDiagram
 
 ### Distributed Mutex with Redis
 
-In distributed systems, a regular in-process mutex doesn't work — Request #1 might be on Server A, while Request #2 is on Server B. You need a **distributed lock** — typically via Redis's `SET key value NX PX timeout` command (the **Redlock algorithm**).
+In distributed systems,  
+a regular in-process mutex doesn't work —  
+Request #1 might be on Server A,  
+while Request #2 is on Server B.  
+You need a **distributed lock** —  
+typically via Redis's `SET key value NX PX timeout` command (the **Redlock algorithm**).
 
 > ⚠️ **Watch Out:** Mutex adds latency for waiting requests. If the lock holder crashes before releasing, the lock TTL saves you. Always handle "lock timeout" gracefully — don't let waiting requests starve forever.
 
@@ -299,17 +362,21 @@ In distributed systems, a regular in-process mutex doesn't work — Request #1 m
 
 ## 6. Stale-While-Revalidate (SWR) — Serve Old, Refresh Quietly
 
-Mutex makes users wait. That's sometimes unacceptable. There's a better philosophy for many use cases:
+Mutex makes users wait.  
+That's sometimes unacceptable.  
+There's a better philosophy for many use cases:
 
 > *"Give the user slightly stale data instantly. Refresh in the background. Next request gets fresh. Nobody waited."*
 
-**Stale-While-Revalidate (SWR)** separates "serving" from "refreshing." When a request arrives for expired data:
+**Stale-While-Revalidate (SWR)** separates "serving" from "refreshing."  
+When a request arrives for expired data:
 
 1. **Immediately return the stale (old) value** — zero latency for the user
 2. **Simultaneously trigger a background refresh**
 3. **Next request gets the fresh value**
 
-This is exactly how modern CDNs work. Cloudflare, Fastly, and Akamai all support SWR via HTTP headers:
+This is exactly how modern CDNs work.  
+Cloudflare, Fastly, and Akamai all support SWR via HTTP headers:
 
 ```
 Cache-Control: max-age=300, stale-while-revalidate=60
@@ -339,7 +406,7 @@ sequenceDiagram
     C-->>U2: ✅ Fresh Data
 ```
 
-> 🌍 **Real-World Adoption:** The SWR pattern is so popular that Vercel named their famous React data-fetching library after it — **SWR** — with over 32.3k GitHub [2] stars (https://github.com/vercel/swr). The pattern is used by Netflix, Twitter/X, and virtually every major CDN on the planet.
+> 🌍 **Real-World Adoption:** The SWR pattern is so popular that Vercel named their famous React data-fetching library after it — **SWR** — with over 32.3k GitHub stars [2]. The pattern is used by Netflix, Twitter/X, and virtually every major CDN on the planet.
 
 ### When SWR Works Best
 
@@ -357,11 +424,20 @@ sequenceDiagram
 
 ## 7. Cache Warming / Pre-Warming — Fill Before the Flood
 
-It's the morning of a massive e-commerce sale — think Flipkart Big Billion Days. Engineers know that at 12:00 AM, lakhs of users will flood the platform. If the cache is cold (empty), those first requests will hit the database with full force. The first 10 minutes could be catastrophic.
+It's the morning of a massive e-commerce sale —  
+think Flipkart Big Billion Days.  
+Engineers know that at 12:00 AM,  
+lakhs of users will flood the platform.  
+If the cache is cold (empty),  
+those first requests will hit the database with full force.  
+The first 10 minutes could be catastrophic.
 
-The solution? **Don't wait for users to warm the cache. Warm it yourself.**
+The solution?  
+**Don't wait for users to warm the cache.  
+Warm it yourself.**
 
-**Cache Warming** (also called Pre-Warming or Cache Priming) is the practice of proactively loading frequently accessed data into the cache *before* traffic arrives.
+**Cache Warming** (also called Pre-Warming or Cache Priming) is  
+the practice of proactively loading frequently accessed data into the cache *before* traffic arrives.
 
 ### Three Warming Approaches
 
@@ -405,7 +481,8 @@ Every caching strategy is a negotiation between three forces that are always in 
 - **⚡ Latency** — How fast is the response? More caching = lower latency but potential staleness.
 - **🔒 Consistency** — Do all users see the same data? Distributed caches can serve different versions.
 
-You cannot fully optimize all three simultaneously. Every strategy picks its priorities:
+You cannot fully optimize all three simultaneously.  
+Every strategy picks its priorities:
 
 ### Diagram — Strategy Tradeoff Comparison
 
@@ -449,10 +526,6 @@ Caching has its own version: Freshness, Latency, Consistency — and no strategy
 
 
 ```markmap
----
-title: Cache Strategy Decision Guide
----
-
 # Which Cache Strategy?
 
 ## Can I tolerate slightly stale data?
@@ -577,10 +650,6 @@ The journey in between was a walk through the real battle-scars of distributed s
 
 
 ```markmap
----
-title: Cache Strategies — Final Summary
----
-
 # Cache Strategies Summary
 
 ## 🔴 The Problem
