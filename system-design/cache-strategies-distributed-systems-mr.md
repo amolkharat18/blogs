@@ -489,13 +489,13 @@ timeline
 
 ```mermaid
 quadrantChart
-    title Cache Strategy Tradeoffs (Freshness vs Speed)
-    x-axis कमी Freshness --> जास्त Freshness
-    y-axis कमी Speed --> जास्त Speed
-    quadrant-1 दोन्हींचे सर्वोत्तम
-    quadrant-2 जलद पण जुने
-    quadrant-3 हा zone टाळा
-    quadrant-4 Fresh पण संथ
+    title "Cache Strategy Tradeoffs (Freshness vs Speed)"
+    x-axis "कमी Freshness" --> "जास्त Freshness"
+    y-axis "कमी Speed" --> "जास्त Speed"
+    quadrant-1 "दोन्हींचे सर्वोत्तम"
+    quadrant-2 "जलद पण जुने"
+    quadrant-3 "हा zone टाळा"
+    quadrant-4 "Fresh पण संथ"
     Basic TTL: [0.35, 0.55]
     TTL + Jitter: [0.45, 0.60]
     Probabilistic Expiry: [0.70, 0.72]
